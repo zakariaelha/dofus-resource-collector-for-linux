@@ -1,0 +1,28 @@
+import os
+import shutil
+from pathlib import Path
+from PIL import Image
+
+# -------------------------------
+# CONFIGURATION
+# -------------------------------
+# Replace with your Steam Deck screenshot folder
+steam_screenshot_folder = Path.home() / "Pictures/Screenshots"
+# Your bot's screenshots folder
+bot_screenshot_folder = Path.cwd() / "screenshots"
+
+# Create bot folder if it doesn't exist
+bot_screenshot_folder.mkdir(exist_ok=True)
+
+# -------------------------------
+# PROCESS SCREENSHOTS
+# -------------------------------
+for file in steam_screenshot_folder.iterdir():
+    if file.suffix.lower() in [".png", ".jpg", ".jpeg"]:
+        # Open image and convert to PNG (if needed)
+        img = Image.open(file)
+        output_file = bot_screenshot_folder / f"{file.stem}.png"
+        img.save(output_file, format="PNG")
+        print(f"Copied and converted: {file.name} -> {output_file.name}")
+
+print("All screenshots processed!")
