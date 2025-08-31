@@ -1,0 +1,84 @@
+import tkinter as tk
+import threading
+import time
+
+# Global state
+running = False
+resources_collected = 0
+ocr_reads = 0
+start_time = None
+
+# -------------------------------
+# BOT LOOP (placeholder for clicks/OCR)
+# -------------------------------
+def bot_loop(status_label, resource_label, ocr_label, timer_label):
+    global running, resources_collected, ocr_reads, start_time
+
+    while running:
+        time.sleep(2)  # simulate work every 2s
+        resources_collected += 1
+        ocr_reads += 1
+
+        # Update GUI labels safely
+        resource_label.config(text=f"Resources: {resources_collected}")
+        ocr_label.config(text=f"OCR Reads: {ocr_reads}")
+
+        # Update elapsed time
+        if start_time:
+            elapsed = int(time.time() - start_time)
+            timer_label.config(text=f"Time: {elapsed}s")
+
+
+# -------------------------------
+# GUI Overlay
+# -------------------------------
+def launch_gui():
+    global running, start_time
+
+    root = tk.Tk()
+    root.title("Resource Bot Overlay")
+    root.geometry("200x150+50+50")  # small overlay, fixed position
+
+    status_label = tk.Label(root, text="Status: Stopped", font=("Arial", 12))
+    status_label.pack()
+
+    resource_label = tk.Label(root, text="Resources: 0", font=("Arial", 12))
+    resource_label.pack()
+
+    ocr_label = tk.Label(root, text="OCR Reads: 0", font=("Arial", 12))
+    ocr_label.pack()
+
+    timer_label = tk.Label(root, text="Time: 0s", font=("Arial", 12))
+    timer_label.pack()
+
+    # Start button
+    def start_bot():
+        nonlocal status_label, resource_label, ocr_label, timer_label
+        global running, start_time
+        if not running:
+            running = True
+            start_time = time.time()
+            status_label.config(text="Status: Running ✅")
+            threading.Thread(target=bot_loop, args=(status_label, resource_label, ocr_label, timer_label), daemon=True).start()
+
+    # Stop button
+    def stop_bot():
+        global running
+        running = False
+        status_label.config(text="Status: Stopped ⏹")
+
+    start_btn = tk.Button(root, text="Start", command=start_bot)
+    start_btn.pack(pady=5)
+
+    stop_btn = tk.Button(root, text="Stop", command=stop_bot)
+    stop_btn.pack(pady=5)
+
+    root.mainloop()
+
+
+# -------------------------------
+# MAIN ENTRY
+# -------------------------------
+if __name__ == "__main__":
+    print(">>> BOT STARTED ✅ GUI launching...")
+    launch_gui()
