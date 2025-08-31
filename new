@@ -6,7 +6,7 @@ import pytesseract
 import mss
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageGrab
 
 # -------------------------------
 # GLOBAL STATE
@@ -15,16 +15,17 @@ running = False
 resources_collected = 0
 ocr_reads = 0
 start_time = None
+box = None  # selected resource area
 
 # -------------------------------
 # BOT LOOP (clicking + OCR)
 # -------------------------------
 def bot_loop(status_label, resource_label, ocr_label, timer_label):
-    global running, resources_collected, ocr_reads, start_time
+    global running, resources_collected, ocr_reads, start_time, box
 
-    # Set your screen region here for OCR / clicks
-    # Example: 200x200 box at top-left of screen
-    box = {'top': 400, 'left': 600, 'width': 200, 'height': 200}
+    if box is None:
+        print("No resource area selected! Select a box first.")
+        return
 
     with mss.mss() as sct:
         while running:
@@ -35,26 +36,64 @@ def bot_loop(status_label, resource_label, ocr_label, timer_label):
             img = Image.frombytes('RGB', screenshot.size, screenshot.rgb)
             img_np = np.array(img)
 
-            # Convert to grayscale for OCR
+            # OCR
             gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
             text = pytesseract.image_to_string(gray, config='--psm 6')
 
-            # Simple OCR logic (increment counter if text detected)
             if text.strip():
                 ocr_reads += 1
 
-            # Click at the center of the box (simulate resource click)
+            # Click at the center
             center_x = box['left'] + box['width']//2
             center_y = box['top'] + box['height']//2
             pyautogui.click(center_x, center_y)
             resources_collected += 1
 
-            # Update GUI labels
+            # Update GUI
             resource_label.config(text=f"Resources: {resources_collected}")
             ocr_label.config(text=f"OCR Reads: {ocr_reads}")
             if start_time:
                 elapsed = int(time.time() - start_time)
                 timer_label.config(text=f"Time: {elapsed}s")
+
+# -------------------------------
+# DRAG TO SELECT RESOURCE AREA
+# -------------------------------
+def select_box():
+    global box
+    selection_done = threading.Event()
+
+    def on_mouse_down(event):
+        nonlocal start_x, start_y
+        start_x, start_y = event.x, event.y
+
+    def on_mouse_up(event):
+        nonlocal start_x, start_y
+        end_x, end_y = event.x, event.y
+        box = {
+            'top': min(start_y, end_y),
+            'left': min(start_x, end_x),
+            'width': abs(end_x - start_x),
+            'height': abs(end_y - start_y)
+        }
+        print(f"Resource area selected: {box}")
+        selection_done.set()
+        root.destroy()
+
+    root = tk.Tk()
+    root.attributes("-topmost", True)
+    root.attributes("-alpha", 0.3)
+    root.attributes("-fullscreen", True)
+    root.config(bg='blue')
+    start_x = start_y = 0
+
+    root.bind("<ButtonPress-1>", on_mouse_down)
+    root.bind("<ButtonRelease-1>", on_mouse_up)
+
+    tk.Label(root, text="Drag to select resource area", bg="yellow").pack()
+    root.mainloop()
+
+    selection_done.wait()
 
 # -------------------------------
 # GUI OVERLAY
@@ -64,9 +103,8 @@ def launch_gui():
 
     root = tk.Tk()
     root.title("Resource Bot Overlay")
-    root.geometry("200x150+50+50")  # small fixed overlay
+    root.geometry("220x160+50+50")  # small fixed overlay
 
-    # Labels
     status_label = tk.Label(root, text="Status: Stopped", font=("Arial", 12))
     status_label.pack()
     resource_label = tk.Label(root, text="Resources: 0", font=("Arial", 12))
@@ -76,10 +114,12 @@ def launch_gui():
     timer_label = tk.Label(root, text="Time: 0s", font=("Arial", 12))
     timer_label.pack()
 
-    # Start / Stop buttons
+    # Buttons
     def start_bot():
-        nonlocal status_label, resource_label, ocr_label, timer_label
         global running, start_time
+        if box is None:
+            print("Select a resource area first!")
+            return
         if not running:
             running = True
             start_time = time.time()
@@ -95,10 +135,16 @@ def launch_gui():
         running = False
         status_label.config(text="Status: Stopped ⏹")
 
+    def choose_box():
+        select_box()
+        print("Box selected:", box)
+
     start_btn = tk.Button(root, text="Start", command=start_bot)
-    start_btn.pack(pady=5)
+    start_btn.pack(pady=3)
     stop_btn = tk.Button(root, text="Stop", command=stop_bot)
-    stop_btn.pack(pady=5)
+    stop_btn.pack(pady=3)
+    box_btn = tk.Button(root, text="Select Area", command=choose_box)
+    box_btn.pack(pady=3)
 
     root.mainloop()
 
