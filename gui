@@ -1,13 +1,12 @@
 import tkinter as tk
-from tkinter import simpledialog
 import threading
 import time
 import pyautogui
 import pytesseract
-import mss
 import cv2
 import numpy as np
 from PIL import Image
+import glob
 
 # -------------------------------
 # GLOBAL STATE
@@ -16,76 +15,57 @@ running = False
 resources_collected = 0
 ocr_reads = 0
 start_time = None
-box = None  # selected resource area
+screenshots = []  # list of screenshot file paths
+current_index = 0  # index for cycling through screenshots
 
 # -------------------------------
-# BOT LOOP (clicking + OCR)
+# BOT LOOP (OCR + click simulation)
 # -------------------------------
 def bot_loop(status_label, resource_label, ocr_label, timer_label):
-    global running, resources_collected, ocr_reads, start_time, box
+    global running, resources_collected, ocr_reads, start_time, screenshots, current_index
 
-    if box is None:
-        print("No resource area selected! Select a box first.")
+    if not screenshots:
+        print("No screenshots loaded!")
         return
 
-    with mss.mss() as sct:
-        while running:
-            time.sleep(1)  # pause between cycles
+    while running:
+        time.sleep(1)  # wait between cycles
 
-            # Screenshot the region
-            screenshot = sct.grab(box)
-            img = Image.frombytes('RGB', screenshot.size, screenshot.rgb)
-            img_np = np.array(img)
+        # Load the current screenshot
+        img = Image.open(screenshots[current_index])
+        img_np = np.array(img)
 
-            # OCR
-            gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-            text = pytesseract.image_to_string(gray, config='--psm 6')
+        # OCR
+        gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+        text = pytesseract.image_to_string(gray, config='--psm 6')
 
-            if text.strip():
-                ocr_reads += 1
+        if text.strip():
+            ocr_reads += 1
 
-            # Click at the center
-            center_x = box['left'] + box['width']//2
-            center_y = box['top'] + box['height']//2
-            pyautogui.click(center_x, center_y)
-            resources_collected += 1
+        # Simulate click at center of image (for counting only)
+        resources_collected += 1
 
-            # Update GUI
-            resource_label.config(text=f"Resources: {resources_collected}")
-            ocr_label.config(text=f"OCR Reads: {ocr_reads}")
-            if start_time:
-                elapsed = int(time.time() - start_time)
-                timer_label.config(text=f"Time: {elapsed}s")
+        # Update GUI
+        resource_label.config(text=f"Resources: {resources_collected}")
+        ocr_label.config(text=f"OCR Reads: {ocr_reads}")
+        if start_time:
+            elapsed = int(time.time() - start_time)
+            timer_label.config(text=f"Time: {elapsed}s")
 
-# -------------------------------
-# SAFE AREA SELECTION
-# -------------------------------
-def select_box_safe():
-    global box
-    root = tk.Tk()
-    root.withdraw()  # hide main window
-
-    print("Enter the top-left corner coordinates of the resource area")
-    left = simpledialog.askinteger("Select Area", "Left X:")
-    top = simpledialog.askinteger("Select Area", "Top Y:")
-
-    print("Enter the bottom-right corner coordinates of the resource area")
-    right = simpledialog.askinteger("Select Area", "Right X:")
-    bottom = simpledialog.askinteger("Select Area", "Bottom Y:")
-
-    box = {
-        "left": min(left, right),
-        "top": min(top, bottom),
-        "width": abs(right - left),
-        "height": abs(bottom - top)
-    }
-    print("Resource area selected:", box)
+        # Move to next screenshot
+        current_index = (current_index + 1) % len(screenshots)
 
 # -------------------------------
 # GUI OVERLAY
 # -------------------------------
 def launch_gui():
-    global running, start_time, box
+    global running, start_time, screenshots
+
+    # Load screenshots
+    screenshots = glob.glob("screenshots/*.png")  # adjust folder if needed
+    print(f"Loaded {len(screenshots)} screenshots for OCR testing.")
+    if not screenshots:
+        print("No screenshots found! Place your images in the 'screenshots/' folder.")
 
     root = tk.Tk()
     root.title("Resource Bot Overlay")
@@ -104,8 +84,8 @@ def launch_gui():
     # Buttons
     def start_bot():
         global running, start_time
-        if box is None:
-            print("Select a resource area first!")
+        if not screenshots:
+            print("No screenshots loaded! Cannot start bot.")
             return
         if not running:
             running = True
@@ -122,15 +102,10 @@ def launch_gui():
         running = False
         status_label.config(text="Status: Stopped ⏹")
 
-    def choose_box():
-        select_box_safe()
-
     start_btn = tk.Button(root, text="Start", command=start_bot)
     start_btn.pack(pady=3)
     stop_btn = tk.Button(root, text="Stop", command=stop_bot)
     stop_btn.pack(pady=3)
-    box_btn = tk.Button(root, text="Select Area", command=choose_box)
-    box_btn.pack(pady=3)
 
     root.mainloop()
 
