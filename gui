@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import simpledialog
 import threading
 import time
 import pyautogui
@@ -57,55 +58,34 @@ def bot_loop(status_label, resource_label, ocr_label, timer_label):
                 timer_label.config(text=f"Time: {elapsed}s")
 
 # -------------------------------
-# DRAG-TO-SELECT TRANSPARENT OVERLAY
+# SAFE AREA SELECTION
 # -------------------------------
-def select_box_transparent():
+def select_box_safe():
     global box
-    box = None
-    start_x = start_y = 0
-
     root = tk.Tk()
-    root.attributes("-topmost", True)
-    root.attributes("-fullscreen", True)
-    root.attributes("-alpha", 0.01)  # almost invisible
-    root.config(bg='black')           # background doesn’t matter
+    root.withdraw()  # hide main window
 
-    canvas = tk.Canvas(root, bg="", highlightthickness=0)
-    canvas.pack(fill="both", expand=True)
+    print("Enter the top-left corner coordinates of the resource area")
+    left = simpledialog.askinteger("Select Area", "Left X:")
+    top = simpledialog.askinteger("Select Area", "Top Y:")
 
-    rect = None
+    print("Enter the bottom-right corner coordinates of the resource area")
+    right = simpledialog.askinteger("Select Area", "Right X:")
+    bottom = simpledialog.askinteger("Select Area", "Bottom Y:")
 
-    def on_mouse_down(event):
-        nonlocal start_x, start_y, rect
-        start_x, start_y = event.x, event.y
-        rect = canvas.create_rectangle(start_x, start_y, start_x, start_y, outline='red', width=2)
-
-    def on_mouse_drag(event):
-        canvas.coords(rect, start_x, start_y, event.x, event.y)
-
-    def on_mouse_up(event):
-        nonlocal start_x, start_y
-        end_x, end_y = event.x, event.y
-        box = {
-            'top': min(start_y, end_y),
-            'left': min(start_x, end_x),
-            'width': abs(end_x - start_x),
-            'height': abs(end_y - start_y)
-        }
-        print(f"Resource area selected: {box}")
-        root.destroy()
-
-    canvas.bind("<ButtonPress-1>", on_mouse_down)
-    canvas.bind("<B1-Motion>", on_mouse_drag)
-    canvas.bind("<ButtonRelease-1>", on_mouse_up)
-
-    root.mainloop()
+    box = {
+        "left": min(left, right),
+        "top": min(top, bottom),
+        "width": abs(right - left),
+        "height": abs(bottom - top)
+    }
+    print("Resource area selected:", box)
 
 # -------------------------------
 # GUI OVERLAY
 # -------------------------------
 def launch_gui():
-    global running, start_time
+    global running, start_time, box
 
     root = tk.Tk()
     root.title("Resource Bot Overlay")
@@ -143,8 +123,7 @@ def launch_gui():
         status_label.config(text="Status: Stopped ⏹")
 
     def choose_box():
-        select_box_transparent()
-        print("Box selected:", box)
+        select_box_safe()
 
     start_btn = tk.Button(root, text="Start", command=start_bot)
     start_btn.pack(pady=3)
